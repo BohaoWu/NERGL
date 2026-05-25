@@ -24,10 +24,30 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn import CrossEntropyLoss
 
-from transformers.modeling_bart import * 
-# from transformers.models.bart.modeling_bart import *
+# from transformers.modeling_bart import *
+from transformers.models.bart.modeling_bart import *
+from transformers.utils import logging as transformers_logging
+from transformers.modeling_outputs import (
+    BaseModelOutput,
+    BaseModelOutputWithPast,
+    Seq2SeqModelOutput,
+    Seq2SeqLMOutput,
+    Seq2SeqSequenceClassifierOutput,
+    Seq2SeqQuestionAnsweringModelOutput,
+)
 
-logger = logging.get_logger(__name__)
+# Compatibility shims for transformers 3.x decorators removed in 4.x
+def add_start_docstrings_to_callable(*args, **kwargs):
+    def decorator(func):
+        return func
+    return decorator
+
+def add_code_sample_docstrings(*args, **kwargs):
+    def decorator(func):
+        return func
+    return decorator
+
+logger = transformers_logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "BartConfig"
 _TOKENIZER_FOR_DOC = "BartTokenizer"

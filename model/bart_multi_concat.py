@@ -1,12 +1,14 @@
 import torch
 from .modeing_bart_multi_concat import BartEncoder, BartDecoder, BartModel
-from transformers import BartTokenizer
+from transformers import AutoTokenizer
 from fastNLP import seq_len_to_mask
 from fastNLP.modules import Seq2SeqEncoder, Seq2SeqDecoder, State
 import torch.nn.functional as F
 from fastNLP.models import Seq2SeqModel
 from torch import nn
 import math
+
+import data_processing.config as config
 
 
 
@@ -20,12 +22,28 @@ class FBartEncoder(Seq2SeqEncoder):
         assert isinstance(encoder, BartEncoder)
         self.bart_encoder = encoder
 
-    def forward(self, src_tokens, image_feature, src_seq_len):
-        mask = seq_len_to_mask(src_seq_len, max_len=src_tokens.size(1))
-        image_mask = mask_iamge(image_feature)    
+    def forward(self, src_tokens, image_feature, rag_tokens, src_seq_len, rag_seq_len):
+        if config.switch_rag:
+            # Add mask of RAG information
+            input_tokens = torch.cat([rag_tokens, src_tokens], dim=1)
+            src_mask = seq_len_to_mask(src_seq_len, max_len=src_tokens.size(1))
+            rag_mask = seq_len_to_mask(rag_seq_len, max_len=rag_tokens.size(1))
+            mask = torch.cat([rag_mask, src_mask], dim=1)
+        else:
+            mask = seq_len_to_mask(src_seq_len, max_len=src_tokens.size(1))
+            image_mask = mask_iamge(image_feature)  
+            input_tokens = src_tokens
+        
 
-        img_feat_, dict = self.bart_encoder(input_ids=src_tokens, image_feature=image_feature, attention_mask=mask, image_mask = image_mask, return_dict=True,
-                                 output_hidden_states=True)  # last_hidden_state: tensor(bsz, max_len, 768),  hidden_states: tuple((baz, max_len, 768)),  attentions
+        image_mask = mask_iamge(image_feature)    
+        img_feat_, dict = self.bart_encoder(
+            input_ids=input_tokens,
+            image_feature=image_feature,
+            attention_mask=mask,
+            image_mask = image_mask,
+            return_dict=True,
+            output_hidden_states=True
+        )  # last_hidden_state: tensor(bsz, max_len, 768),  hidden_states: tuple((baz, max_len, 768)),  attentions
         encoder_outputs = dict.last_hidden_state
         hidden_states = dict.hidden_states
         multi_modal_mask = torch.cat((image_mask,mask),dim=-1)
@@ -274,25 +292,29 @@ class BartSeq2SeqModel(Seq2SeqModel):
                     use_encoder_mlp=False,box_num = 36):
         model = BartModel.from_pretrained(bart_model)
         num_tokens, _ = model.encoder.embed_tokens.weight.shape
-        model.resize_token_embeddings(len(tokenizer.unique_no_split_tokens)+num_tokens)   # 扩充vocab
+        model.resize_token_embeddings(len(tokenizer))   # 扩充vocab
         encoder = model.encoder
         decoder = model.decoder
 
-        # 将类别（eg: "<<person>>"）添加到decoder原本词表之前，embed使用“类别名”的embed
-        _tokenizer = BartTokenizer.from_pretrained(bart_model)   
-        for token in tokenizer.unique_no_split_tokens:
+        # 将类别（eg: “<<person>>”）添加到decoder原本词表之前，embed使用”类别名”的embed
+        _tokenizer = AutoTokenizer.from_pretrained(bart_model)
+        added_tokens = list(tokenizer.added_tokens_encoder.keys()) if hasattr(tokenizer, 'added_tokens_encoder') else getattr(tokenizer, 'unique_no_split_tokens', [])
+        for token in added_tokens:
             if token[:2] == '<<':  # 特殊字符
+                # check index
                 index = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(token))
                 if len(index)>1:
                     raise RuntimeError(f"{token} wrong split")   
                 else:
                     index = index[0]
                 assert index>=num_tokens, (index, num_tokens, token) 
+                # indexs is tokenized type of NE, and transform it into tokens of subword
                 indexes = _tokenizer.convert_tokens_to_ids(_tokenizer.tokenize(token[2:-2])) 
                 embed = model.encoder.embed_tokens.weight.data[indexes[0]]  
                 for i in indexes[1:]:
                     embed += model.decoder.embed_tokens.weight.data[i]
                 embed /= len(indexes)   
+                # embed is an normilizated vector, which is the 
                 model.decoder.embed_tokens.weight.data[index] = embed  
 
         encoder = FBartEncoder(encoder)
@@ -309,14 +331,14 @@ class BartSeq2SeqModel(Seq2SeqModel):
 
         return cls(encoder=encoder, decoder=decoder)
 
-    def prepare_state(self, src_tokens, image_feature,src_seq_len=None, first=None, tgt_seq_len=None):
-        img_feat_, encoder_outputs, encoder_mask, hidden_states = self.encoder(src_tokens,image_feature, src_seq_len)
+    def prepare_state(self, src_tokens, image_feature,rag_tokens,src_seq_len=None, first=None, tgt_seq_len=None, rag_seq_len=None):
+        img_feat_, encoder_outputs, encoder_mask, hidden_states = self.encoder(src_tokens,image_feature,rag_tokens, src_seq_len, rag_seq_len)
         src_embed_outputs = hidden_states[0]
-        state = BartState(encoder_outputs, encoder_mask, src_tokens, first, src_embed_outputs)
-        # BartState 包括: src_tokens, first, src_embed_outputs
+        state = BartState(encoder_outputs, encoder_mask, src_tokens, rag_tokens, first, src_embed_outputs)
+        # BartState 包括: src_tokens, rag_tokens, first, src_embed_outputs
         return img_feat_, state
 
-    def forward(self, src_tokens,image_feature, tgt_tokens, src_seq_len, tgt_seq_len, first):
+    def forward(self, src_tokens,image_feature, tgt_tokens, rag_tokens, src_seq_len, tgt_seq_len, rag_seq_len, first):
         """
 
         :param torch.LongTensor src_tokens: source的token
@@ -327,7 +349,7 @@ class BartSeq2SeqModel(Seq2SeqModel):
         :return: {'pred': torch.Tensor}, 其中pred的shape为bsz x max_len x vocab_size
         """
         
-        img_feat_, state = self.prepare_state(src_tokens, image_feature,src_seq_len, first, tgt_seq_len)
+        img_feat_, state = self.prepare_state(src_tokens, image_feature,rag_tokens,src_seq_len, first, tgt_seq_len, rag_seq_len=rag_seq_len)
         decoder_output, region_pred = self.decoder(img_feat_, tgt_tokens, state)  # (bsz, max_target, 95) # 95, 每个预测的token上分 max_len+类别数 类
         if isinstance(decoder_output, torch.Tensor):
             return {'pred': decoder_output,'region_pred':region_pred}
@@ -337,16 +359,18 @@ class BartSeq2SeqModel(Seq2SeqModel):
 
 
 class BartState(State):
-    def __init__(self, encoder_output, encoder_mask, src_tokens, first, src_embed_outputs):
+    def __init__(self, encoder_output, encoder_mask, src_tokens, rag_tokens, first, src_embed_outputs):
         super().__init__(encoder_output, encoder_mask)
         self.past_key_values = None
         self.src_tokens = src_tokens
+        self.rag_tokens = rag_tokens
         self.first = first
         self.src_embed_outputs = src_embed_outputs
 
     def reorder_state(self, indices: torch.LongTensor):
         super().reorder_state(indices)
         self.src_tokens = self._reorder_state(self.src_tokens, indices)
+        self.rag_tokens = self._reorder_state(self.rag_tokens, indices)
         if self.first is not None:
             self.first = self._reorder_state(self.first, indices)
         self.src_embed_outputs = self._reorder_state(self.src_embed_outputs, indices)

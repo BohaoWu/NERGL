@@ -1,43 +1,97 @@
-# README
+# NERGL
 
-Here are code and dataset for our ACL2023 paper: [Grounded Multimodal Named Entity Recognition on Social Media](https://aclanthology.org/2023.acl-long.508.pdf)
+**NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks**
 
-## Updates
+Source code for our TPDL 2026 paper: [NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1)
 
-### 20230728: Twitter10000 v2.0
+This project performs named entity recognition and visual grounding on Japanese Ukiyo-e (浮世絵) artwork metadata, with RAG-enhanced recognition via LLMs (GPT/Claude) and a Japanese BART model as the backbone.
 
-We have made some revisions to the Twitter10000 dataset.  In Twitter10000 v2.0, we made several detailed revisions to the BIO tagging and bounding box annotations, improving the alignment between the two to ensure a more accurate and consistent relationship.
+## Project Structure
 
-## Dataset
+```
+├── model/                  # Model architecture (BART-based multi-concat)
+├── data_processing/        # Data preprocessing, evaluation, and LLM-based RAG
+├── train.py / train.sh     # Training scripts
+├── test.py / test.sh       # Evaluation scripts
+├── demo.py                 # Demo script
+└── .env.example            # API key configuration template
+```
 
-Our dataset is built on two benchmark MNER datasets, i.e., Twitter-15 (Zhang
-et al., 2018) and Twitter-17 (Yu et al., 2020).
+## Requirements
 
-- The preprocessed CoNLL format files are provided in this repo. For each tweet, the first line is its image id, and the following lines are its textual contents.
-- Step 1：Download each tweet's associated images via this link (<https://drive.google.com/file/d/1PpvvncnQkgDNeBMKVgG2zFYuRhbL873g/view>)
-- Step 2:  Use [VinVL](https://github.com/pzzhang/VinVL) to identify all the candidate objects, and put them under the folder named "Twitter10000_VinVL". We have uploaded the features extracted by VinVL to [Google Drive](https://drive.google.com/drive/folders/1w7W4YYeIE6bK2lAfqRtuwxH-tNqAytiK?usp=sharing) and [Baidu Netdisk](https://pan.baidu.com/s/1QqjOlAAjCqAk_qL6ejeARw?pwd=TwVi) (code: TwVi).
+- Python 3.8+
+- PyTorch 2.x (CUDA)
+- transformers >= 4.x
+- fastNLP 0.6.0
+- fitlog
 
-## Requirement
+## Setup
 
-- pytorch 1.7.1
-- transformers 3.4.0
-- fastnlp 0.6.0
+1. Clone the repository:
+
+```bash
+git clone https://github.com/BohaoWu/NERGL.git
+cd NERGL
+```
+
+2. Install dependencies:
+
+```bash
+pip install torch transformers fastNLP fitlog
+```
+
+3. Configure API keys (optional, for RAG mode):
+
+```bash
+cp .env.example .env
+# Edit .env and fill in your API keys
+```
+
+4. Prepare data and models:
+
+- Place the Ukiyo-e dataset under `Ukiyoe1000/` (txt/ and xml/ subdirectories)
+- Place VinVL visual features under `Ukiyoe1000_VinVL/`
+- Download a Japanese BART model to `download_model/`
 
 ## Usage
 
-### Training for H-Index
+### Training
 
-```
-sh train.sh
+```bash
+bash train.sh
 ```
 
 ### Evaluation
 
+```bash
+bash test.sh
 ```
-sh test.sh
+
+## RAG Configuration
+
+RAG mode can be configured in `data_processing/config.py`:
+
+- `switch_rag`: Enable/disable RAG enhancement
+- `rag_method`: RAG source (0: disabled, 1: from dict file, 2: GPT directly, 5: Claude)
+
+## Citation
+
+If you find this work useful, please cite our paper:
+
+```bibtex
+@InProceedings{10.1007/978-3-032-06136-2_1,
+  author="Wu, Bohao and Maeda, Akira",
+  title="NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks",
+  booktitle="New Trends in Theory and Practice of Digital Libraries",
+  year="2026",
+  publisher="Springer Nature Switzerland",
+  address="Cham",
+  pages="3--13",
+  isbn="978-3-032-06136-2"
+}
 ```
 
 ## Acknowledgements
 
-- Using the dataset means you have read and accepted the copyrights set by Twitter and original dataset providers.
-- Some codes are based on the codes of  [BARTNER](https://github.com/yhcc/BARTNER), thanks a lot!
+- [GMNER](https://github.com/NUSTM/GMNER) (ACL 2023: [Grounded Multimodal Named Entity Recognition on Social Media](https://aclanthology.org/2023.acl-long.508.pdf))
+- [BARTNER](https://github.com/yhcc/BARTNER)

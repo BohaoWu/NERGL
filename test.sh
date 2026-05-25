@@ -1,12 +1,12 @@
 
-python test.py \
-    --bart_name facebook/bart-base \
+CUDA_VISIBLE_DEVICES=1 python test.py \
+    --bart_name /root/GMNER/download_model/bart-large-japanese \
     --model_weight ./saved_model/best_model \
-    --datapath  ./Twitter10000/txt \
-    --image_feature_path ./twitter10000_VinVL \
-    --image_annotation_path ./Twitter10000/xml \
-    --box_num 16 \
+    --datapath  ./Ukiyoe1000/txt \
+    --image_feature_path ./Ukiyoe1000_VinVL \
+    --image_annotation_path ./Ukiyoe1000/xml \
+    --box_num 18 \
     --batch_size 32 \
-    --max_len 30 \
+    --max_len 50 \
     --normalize \
           

@@ -25,12 +25,14 @@ from fastNLP import BucketSampler, GradientClipCallback, cache_results, EarlySto
 
 from model.callbacks import WarmupCallback
 from fastNLP.core.sampler import SortedSampler
-from fastNLP.core.sampler import  ConstTokenNumSampler
+from fastNLP.core.sampler import  ConstantTokenNumSampler
 from model.callbacks import FitlogCallback
 from fastNLP import DataSetIter
 from tqdm import tqdm, trange
 from fastNLP.core.utils import _move_dict_value_to_device
 import random
+
+from data_processing.get_figure import get_figure_one, get_figure
 
 fitlog.debug()
 fitlog.set_log_dir('logs')
@@ -41,20 +43,20 @@ fitlog.set_log_dir('logs')
 import argparse
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--bart_name', default='facebook/bart-large', type=str)
-parser.add_argument('--datapath', default='./Twitter_GMNER/txt/', type=str)
-parser.add_argument('--image_feature_path',default='./data/Twitter_GMNER_vinvl', type=str)
-parser.add_argument('--image_annotation_path',default='./Twitter_GMNER/xml/', type=str)
+parser.add_argument('--bart_name', default='/root/GMNER/download_model/t5-base-japanese', type=str)
+parser.add_argument('--datapath', default='/root/GMNER/Ukiyoe1000/txt/', type=str)
+parser.add_argument('--image_feature_path',default='/root/GMNER/Ukiyoe1000_VinVL/', type=str)
+parser.add_argument('--image_annotation_path',default='/root/GMNER/Ukiyoe1000/xml/', type=str)
 parser.add_argument('--region_loss_ratio',default='1.0', type=float)
 parser.add_argument('--box_num',default='16', type=int)
 parser.add_argument('--normalize',default=False, action = "store_true")
 parser.add_argument('--use_kl',default=False,action ="store_true")
 parser.add_argument('--lr', default=1e-5, type=float)
-parser.add_argument('--n_epochs', default=30, type=int)
+parser.add_argument('--n_epochs', default=10, type=int)
 parser.add_argument('--max_len', default=30, type=int)
 parser.add_argument('--batch_size',default=16,type=int)
 parser.add_argument('--seed',default=42,type=int)
-parser.add_argument("--save_model",default=0,type=int)
+parser.add_argument("--save_model",default=1,type=int)
 parser.add_argument("--save_path",default='save_models/best',type=str)
 parser.add_argument("--log",default='./logs',type=str)
 args= parser.parse_args()
@@ -106,7 +108,9 @@ data_bundle, tokenizer, mapping2id = get_data()
 print(f'max_len_a:{max_len_a}, max_len:{max_len}')
 
 print(data_bundle)
-print("The number of tokens in tokenizer ", len(tokenizer.decoder))  
+# print("The number of tokens in tokenizer ", len(tokenizer.decoder))  
+print("The number of tokens in tokenizer", tokenizer.vocab_size)
+print(tokenizer.convert_ids_to_tokens([0, 1, 2]))
 
 bos_token_id = 0
 eos_token_id = 1
@@ -148,7 +152,7 @@ parameters.append(params)
 optimizer = optim.AdamW(parameters)
 
 
-metric = Seq2SeqSpanMetric(eos_token_id, num_labels=len(label_ids), region_num =args.box_num, target_type=args.target_type,print_mode = False )
+metric = Seq2SeqSpanMetric(eos_token_id, num_labels=len(label_ids), box_num =args.box_num, target_type=args.target_type,print_mode = False )
 
 train_dataset = data_bundle.get_dataset('train')
 eval_dataset = data_bundle.get_dataset('dev')
@@ -173,11 +177,13 @@ def Training(args, train_idx, train_data, model, device, optimizer):
         tgt_tokens = batch_x['tgt_tokens']
         src_seq_len = batch_x['src_seq_len']
         tgt_seq_len = batch_x['tgt_seq_len']
+        rag_seq_len = batch_x['rag_seq_len']
         first = batch_x['first']
         region_label = batch_y['region_label']
+        rag_tokens = batch_x['rag_tokens']
 
 
-        results = model(src_tokens,image_feature, tgt_tokens, src_seq_len=src_seq_len, tgt_seq_len=tgt_seq_len, first=first)
+        results = model(src_tokens=src_tokens,image_feature=image_feature, tgt_tokens=tgt_tokens, rag_tokens=rag_tokens, src_seq_len=src_seq_len, tgt_seq_len=tgt_seq_len,rag_seq_len=rag_seq_len, first=first)
         pred, region_pred = results['pred'],results['region_pred']   ## logits:(bsz,tgt_len,class+max_len)  region_logits:(??,8)
         
         loss, region_loss = get_loss(tgt_tokens, tgt_seq_len, pred, region_pred,region_label,use_kl=args.use_kl)
@@ -197,7 +203,6 @@ def Training(args, train_idx, train_data, model, device, optimizer):
 
 def Inference(args,eval_data, model, device, metric):
     data_iterator = DataSetIter(eval_data, batch_size=args.batch_size * 2, sampler=SequentialSampler())
-    # for batch_x, batch_y in tqdm(data_iterator, total=len(data_iterator)):
     for batch_x, batch_y in (data_iterator):
         _move_dict_value_to_device(batch_x, batch_y, device=device)
         src_tokens = batch_x['src_tokens']
@@ -205,16 +210,18 @@ def Inference(args,eval_data, model, device, metric):
         tgt_tokens = batch_x['tgt_tokens']
         src_seq_len = batch_x['src_seq_len']
         tgt_seq_len = batch_x['tgt_seq_len']
+        rag_seq_len = batch_x['rag_seq_len']
         first = batch_x['first']
         region_label = batch_y['region_label']
         target_span = batch_y['target_span']
         cover_flag = batch_y['cover_flag']
+        rag_tokens = batch_x['rag_tokens']
 
-        results = model.predict(src_tokens,image_feature, src_seq_len=src_seq_len, first=first)
+        results = model.predict(src_tokens,image_feature,rag_tokens,src_seq_len=src_seq_len, rag_seq_len=rag_seq_len, first=first)
         
         pred,region_pred = results['pred'],results['region_pred']   ## logits:(bsz,tgt_len,class+max_len)  region_logits:(??,8)
         
-        metric.evaluate(target_span, pred, tgt_tokens, region_pred,region_label,cover_flag)
+        metric.evaluate(target_span, pred, tgt_tokens, region_pred,region_label,cover_flag,src_seq_len)
     res = metric.get_metric()  ## {'f': 20.0, 'rec': 16.39, 'pre': 25.64, 'em': 0.125, 'uc': 0}
     return res
 
@@ -230,32 +237,39 @@ def Predict(args,eval_data, model, device, metric,tokenizer,ids2label):
             tgt_tokens = batch_x['tgt_tokens']
             src_seq_len = batch_x['src_seq_len']
             tgt_seq_len = batch_x['tgt_seq_len']
+            rag_seq_len = batch_x['rag_seq_len']
             first = batch_x['first']
             region_label = batch_y['region_label']
             target_span = batch_y['target_span']
             cover_flag = batch_y['cover_flag']
+            rag_tokens = batch_x['rag_tokens']
 
-            results = model.predict(src_tokens,image_feature, src_seq_len=src_seq_len, first=first)
+            results = model.predict(src_tokens,image_feature,rag_tokens, src_seq_len=src_seq_len, rag_seq_len=rag_seq_len,first=first)
             
             pred,region_pred = results['pred'],results['region_pred']   ## logits:(bsz,tgt_len,class+max_len)  region_logits:(??,8)
             
-            pred_pairs, target_pairs = metric.evaluate(target_span, pred, tgt_tokens, region_pred,region_label,cover_flag,predict_mode=True)
+            pred_pairs, target_pairs = metric.evaluate(target_span, pred, tgt_tokens, region_pred,region_label,cover_flag,src_seq_len=src_seq_len,predict_mode=True)
             
             raw_words = batch_y['raw_words']
             word_start_index = 8 ## 2 + 2 +4
             assert len(pred_pairs) == len(target_pairs)
             for i in range(len(pred_pairs)):
                 cur_src_token = src_tokens[i].cpu().numpy().tolist()
-                fw.write(' '.join(raw_words[i])+'\n')
+                fw.write(''.join(raw_words[i])+'\n')
                 fw.write('Pred: ')
                 for k,v in pred_pairs[i].items():
                     entity_span_ind_list =[]
                     for kk in k:
                         entity_span_ind_list.append(cur_src_token[kk-word_start_index])
                     entity_span = tokenizer.decode(entity_span_ind_list)
+                    entity_span = entity_span.replace(" ", "")
                     
                     region_pred, entity_type_ind = v
-                    entity_type = ids2label[entity_type_ind[0]]
+                    if entity_type_ind[0] <= 7:
+                        entity_type = ids2label[entity_type_ind[0]]
+                    else:
+                        print("Entity type error.")
+                        entity_type = '6'
                     
                     fw.write('('+entity_span+' , '+ str(region_pred)+' , '+entity_type+' ) ')
                 fw.write('\n')
@@ -265,6 +279,7 @@ def Predict(args,eval_data, model, device, metric,tokenizer,ids2label):
                     for kk in k:
                         entity_span_ind_list.append(cur_src_token[kk-word_start_index])
                     entity_span = tokenizer.decode(entity_span_ind_list)
+                    # entity_span = entity_span.replace(" ", "")
         
                     region_pred, entity_type_ind = v
                     entity_type = ids2label[entity_type_ind[0]]
@@ -283,6 +298,17 @@ best_dev = {}
 best_test = {}
 best_dev_corresponding_test = {}
 
+train_loss_list = []
+train_region_loss_list = []
+
+train_f_value_list = []
+dev_f_value_list = []
+test_f_value_list = []
+
+train_useful_correct_list = []
+dev_useful_correct_list = []
+test_useful_correct_list = []
+
 for train_idx in range(args.n_epochs):
     print("-"*12+"Epoch: "+str(train_idx)+"-"*12)
 
@@ -290,10 +316,15 @@ for train_idx in range(args.n_epochs):
     train_loss, train_region_loss = Training(args,train_idx=train_idx,train_data=train_dataset, model=model, device=device,
                                                 optimizer=optimizer)
     
+    train_loss_list.append(train_loss)
+    train_region_loss_list.append(train_region_loss)
 
     model.eval()
     dev_res = Inference(args,eval_data=eval_dataset, model=model, device=device, metric = metric)
     dev_f = dev_res['f']
+    
+    dev_f_value_list.append(dev_f)
+    dev_useful_correct_list.append(dev_res['useful_correct'])
     print("dev: "+str(dev_res))
 
    
@@ -301,29 +332,55 @@ for train_idx in range(args.n_epochs):
     
     
     test_f = test_res['f']
+    test_f_value_list.append(test_f)
+    test_useful_correct_list.append(test_res['useful_correct'])
     print("test: "+str(test_res))
 
     train_res = Inference(args,eval_data=train_dataset, model=model, device=device, metric = metric)
     train_f = train_res['f']
+    train_f_value_list.append(train_f)
+    train_useful_correct_list.append(train_res['useful_correct'])
     print("train: "+str(train_res))
 
 
-
-    if dev_f >= max_dev_f:
+    save_f = 0.0
+    if dev_f >= save_f:
         max_dev_f = dev_f 
         if args.save_model:
             model_to_save = model.module if hasattr(model, 'module') else model  
-            torch.save(model_to_save.state_dict(), args.save_path)
+            torch.save(model_to_save.state_dict(), args.save_path + "_" + str(train_idx))
         best_dev = dev_res
         best_dev['epoch'] = train_idx
         best_dev_corresponding_test = test_res
         best_dev_corresponding_test['epoch'] = train_idx
+    
+    # if dev_f >= max_dev_f:
+    #     max_dev_f = dev_f 
+    #     if args.save_model:
+    #         model_to_save = model.module if hasattr(model, 'module') else model  
+    #         torch.save(model_to_save.state_dict(), args.save_path)
+    #     best_dev = dev_res
+    #     best_dev['epoch'] = train_idx
+    #     best_dev_corresponding_test = test_res
+    #     best_dev_corresponding_test['epoch'] = train_idx
         
    
     if test_f >= max_test_f:
         max_test_f = test_f 
         best_test = test_res
         best_test['epoch'] = train_idx
+
+f_list = [train_f_value_list, test_f_value_list, dev_f_value_list]
+f_list_label = ["Train Set F Value", "Test Set F Value", "Validation Set F Value"]
+
+useful_correct_list = [train_useful_correct_list, test_useful_correct_list, dev_useful_correct_list]
+useful_correct_list_label = ["Train Useful Correct", "Test Useful Correct", "Validation Useful Correct"]
+
+# get figure of lossing
+get_figure_one(train_loss_list, "Train Lossing", "Training Lossing")
+get_figure_one(train_region_loss_list, "Train Region Lossing", "Region Lossing")
+get_figure(f_list, f_list_label, title="F Value" ,ylabel="F Value")
+get_figure(useful_correct_list, useful_correct_list_label, title="Useful Correct", ylabel="Number of Useful Correct")
 
 print("                   best_dev: "+str(best_dev))
 print("best_dev_corresponding_test: "+str(best_dev_corresponding_test))
@@ -336,7 +393,8 @@ if args.save_path and args.save_model:
     model_path = args.save_path.rsplit('/')
     args.pred_output_file = '/'.join(model_path[:-1])+'/pred_'+model_path[-1]+'.txt'
 
-    model.load_state_dict(torch.load(args.save_path))
+    best_epoch = best_dev['epoch']
+    model.load_state_dict(torch.load(args.save_path + "_" + str(best_epoch)))
     model.to(device)
 
     print(test_dataset[:3])

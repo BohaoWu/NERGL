@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Data & Models
+Twitter10000/
+Twitter10000_Vinvl/
+Twitter10000_VinVL/
+Ukiyoe1000/
+Ukiyoe1000_VinVL/
+Ukiyoe10000/
+Ukiyoe10000_Vinvl/
+download_model/
+saved_model/
+
+# Output & Resources
+output/
+demo_data/
+figure/
+ukiyoe_picture/
+templates/
+
+# Env
+.env
+
+# System
+core

@@ -48,7 +48,7 @@ class SequenceGeneratorModel(nn.Module):
                                            restricter=restricter,
                                            top_k = top_k)
 
-    def forward(self, src_tokens,image_feature, tgt_tokens, src_seq_len=None, tgt_seq_len=None, first=None):
+    def forward(self, src_tokens,image_feature, tgt_tokens, rag_tokens, src_seq_len=None, tgt_seq_len=None, rag_seq_len=None, first=None):
         """
         透传调用seq2seq_model的forward
 
@@ -59,9 +59,9 @@ class SequenceGeneratorModel(nn.Module):
         :return:
         """
         
-        return self.seq2seq_model(src_tokens, image_feature,tgt_tokens, src_seq_len, tgt_seq_len, first)
+        return self.seq2seq_model(src_tokens=src_tokens, image_feature=image_feature,tgt_tokens=tgt_tokens, rag_tokens=rag_tokens, src_seq_len=src_seq_len, tgt_seq_len=tgt_seq_len, rag_seq_len=rag_seq_len, first=first)
 
-    def predict(self, src_tokens, image_feature,src_seq_len=None, first=None):
+    def predict(self, src_tokens, image_feature, rag_tokens,src_seq_len=None, rag_seq_len=None, first=None):
         """
         给定source的内容，输出generate的内容
 
@@ -70,7 +70,7 @@ class SequenceGeneratorModel(nn.Module):
         :return:
         """
         
-        img_feat_, state = self.seq2seq_model.prepare_state(src_tokens, image_feature, src_seq_len, first)
+        img_feat_, state = self.seq2seq_model.prepare_state(src_tokens=src_tokens, rag_tokens=rag_tokens, image_feature=image_feature, src_seq_len=src_seq_len, rag_seq_len=rag_seq_len, first=first)
         result,region_result = self.generator.generate(img_feat_, state)
         return {'pred': result,'region_pred':region_result}
 
@@ -220,6 +220,7 @@ def _no_beam_search_generate(decoder: Seq2SeqDecoder, state, img_feat_=None,toke
 
     region_ids = torch.full([batch_size, 1, top_k], fill_value=bos_token_id, dtype=torch.long).to(device)
 
+    # decode
     scores, region_scores = decoder.decode(img_feat_= img_feat_, tokens=tokens, state=state) ## return logits
     
     if restricter is not None:
@@ -227,7 +228,7 @@ def _no_beam_search_generate(decoder: Seq2SeqDecoder, state, img_feat_=None,toke
     else:
         next_tokens = scores.argmax(dim=-1, keepdim=True)
 
-    ###
+    ### 若低于阈值（region_threshold，默认 0.0），则设为无效区域（用 region_scores.size(-1) 充当非法 ID）
     region_scores = torch.softmax(region_scores,dim=-1)
     next_region_conf, next_regions = region_scores.topk(k= top_k, dim= -1, largest= True)
     none = torch.full(next_regions.size(), fill_value=region_scores.size(-1), dtype=torch.long).to(device)

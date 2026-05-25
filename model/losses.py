@@ -23,9 +23,8 @@ def get_loss(tgt_tokens, tgt_seq_len, pred, region_pred,region_label,use_kl = Tr
     if region_pred is not None and region_mask.sum()!=0:   
         if use_kl:
             bbox_num = region_pred.size(-1)
-           
             region_loss = F.kl_div(input = F.log_softmax(region_pred), target = region_label[region_mask][:,:-1],reduction= 'batchmean') 
-        
+            
         ## BCE
         else:
            

@@ -25,4 +25,3 @@ def get_max_len_max_len_a(data_bundle, max_len=10):
             max_len_a = _len_a
 
     return max_len, max_len_a
-
