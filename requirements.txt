@@ -1,0 +1,33 @@
+# Tested with Python 3.8, torch 2.3.0 (CUDA 12.1), transformers 4.41.
+# model/ subclasses BART internals of transformers 4.4x; later versions are untested.
+
+# ---- Training and evaluation (script/train.py, script/test.py, data_processing/evaluation/)
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.40.0,<4.42
+fastNLP==0.6.0          # if pip pulls old pinned dependencies, install it with --no-deps
+prettytable             # needed by fastNLP when it is installed with --no-deps
+fitlog
+numpy>=1.24.0
+pillow>=10.0.0
+scikit-learn>=1.3.0
+
+# ---- Data and weights download (script/download.py)
+requests>=2.31.0
+huggingface_hub>=0.23.0
+
+# ---- LLM output and LLM baselines (data_processing/knowledge/, data_processing/evaluation/eval_llm_gmner.py)
+openai>=2.0.0
+anthropic>=0.20.0       # imported by data_processing/gpt_request.py even when only OpenAI is used
+
+# ---- Optional: region proposer features (data_processing/features/), only to regenerate them;
+# script/download.py --proposers fetches the precomputed features instead
+ultralytics>=8.0.0      # YOLOv8x
+open_clip_torch>=2.20.0 # CLIP ViT-L/14
+timm                    # Florence-2 (loaded with trust_remote_code)
+einops                  # Florence-2
+
+# ---- Optional: figures (data_processing/viz/)
+opencv-python>=4.8.0
+matplotlib>=3.7.0
+kanjize
