@@ -2,7 +2,7 @@
 
   python3 script/download.py                 # dataset, images, knowledge cache and BART
   python3 script/download.py --proposers     # also the region features of the proposer comparison
-  python3 script/download.py --model         # also the trained NERGL weights (demo/demo.py)
+  python3 script/download.py --model         # also the trained NERGL weights
 
 The annotations, splits, region features and knowledge cache come from the
 dataset repository on HuggingFace. The prints themselves are not redistributed:
@@ -100,7 +100,7 @@ def fetch_images(workers):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--proposers", action="store_true", help="region features of the proposer comparison")
-    ap.add_argument("--model", action="store_true", help="trained NERGL weights, as used by demo/demo.py")
+    ap.add_argument("--model", action="store_true", help="trained NERGL weights")
     ap.add_argument("--no_images", action="store_true")
     ap.add_argument("--no_bart", action="store_true")
     ap.add_argument("--workers", type=int, default=4, help="parallel image downloads")

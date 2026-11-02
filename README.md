@@ -1,10 +1,37 @@
 # NERGL
 
-**NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks**
+Code for the TPDL 2025 paper **[NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1)** and its journal extension.
 
-Source code for our TPDL 2025 paper: [NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1)
+[[Paper]](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1) [[Dataset]](https://huggingface.co/datasets/BohaoWu/Ukiyoe_MNERG) [[Model]](https://huggingface.co/BohaoWu/NERGL)
 
-This project performs named entity recognition and visual grounding on Japanese Ukiyo-e (浮世絵) artwork metadata, with RAG-enhanced recognition via LLMs (GPT/Claude) and a Japanese BART model as the backbone.
+NERGL finds the named entities in the title of an ukiyo-e (浮世絵) print, types them, and links each one
+to the region of the print that depicts it, or marks it as not depicted. A Japanese BART model reads
+the title, the answer of a large language model (LLM) to the same title, and candidate regions from a
+region proposer.
+
+## Dataset
+
+The Ukiyo-e MNERG dataset is on Hugging Face:
+[BohaoWu/Ukiyoe_MNERG](https://huggingface.co/datasets/BohaoWu/Ukiyoe_MNERG).
+
+- 1,086 prints (736 yakusha-e, 350 meisho-e) from the
+  [Japanese Prints (Ukiyo-e) and Paintings Portal Database](https://www.dh-jac.net/db/nishikie/search_portal.php?lang=en)
+  of the Art Research Center, Ritsumeikan University
+- 2,549 entity mentions of four types: Character (替名), Act (演目), Actor (役者), and Location (地名)
+- box annotations of the depicted entities, and the five-fold split used in the article
+
+| Path | Content |
+|---|---|
+| `txt/` | the original train / dev / test split, BIO tags per character |
+| `cv/fold{0..4}/` | the five-fold split: about 783 train, 86 dev, and 217 test prints per fold |
+| `xml/` | box annotations, one Pascal VOC file per print; the box label is the entity string |
+| `features/Ukiyoe1000_*.zip` | region proposals and features of VinVL and the other proposers in the comparison |
+| `knowledge/gpt_ner_res_sol_v2.txt` | the LLM output: the answer of GPT-6.1 Sol for each title |
+| `images.csv` | source URL and SHA-256 of each print's image |
+
+The images are not redistributed. `script/download.py` fetches them from the Art Research Center and
+checks each hash (see [Setup](#setup)). Please use them under the Center's terms of use. The trained
+weights of one run (fold 0, seed 16) are at [BohaoWu/NERGL](https://huggingface.co/BohaoWu/NERGL).
 
 ## Project Structure
 
@@ -12,7 +39,6 @@ This project performs named entity recognition and visual grounding on Japanese 
 ├── model/                  # Model architecture (BART-based multi-concat)
 ├── data_processing/        # Data preprocessing, evaluation, and LLM-based RAG
 ├── script/                 # train.py, test.py, and run.sh (every experiment in the article)
-├── demo/                   # Demo: demo.py and its page (templates/)
 └── .env.example            # API key configuration template
 ```
 
