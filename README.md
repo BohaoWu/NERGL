@@ -151,5 +151,10 @@ If you find this work useful, please cite our paper:
 
 ## Acknowledgements
 
-- [GMNER](https://github.com/NUSTM/GMNER) (ACL 2023: [Grounded Multimodal Named Entity Recognition on Social Media](https://aclanthology.org/2023.acl-long.508.pdf))
+- [GMNER](https://github.com/NUSTM/GMNER) (ACL 2023: [Grounded Multimodal Named Entity Recognition on Social Media](https://aclanthology.org/2023.acl-long.508.pdf)), on which this code is based
 - [BARTNER](https://github.com/yhcc/BARTNER)
+- The prints and titles come from the [Japanese Prints (Ukiyo-e) and Paintings Portal Database](https://www.dh-jac.net/db/nishikie/search_portal.php?lang=en) of the Art Research Center, Ritsumeikan University
+- [ku-nlp/bart-large-japanese](https://huggingface.co/ku-nlp/bart-large-japanese) (backbone) and [VinVL](https://github.com/pzzhang/VinVL) (default region proposer)
+- Baselines: [MAF](https://github.com/xubodhu/MAF), [HVPNeT](https://github.com/zjunlp/HVPNeT), and [MKGformer](https://github.com/zjunlp/MKGformer) (official code), and ITA (our reimplementation, following [Alibaba-NLP/KB-NER](https://github.com/Alibaba-NLP/KB-NER))
+
+This work was supported by JST SPRING, Grant Number JPMJSP2101, and JSPS KAKENHI Grant Number 23K11780.
