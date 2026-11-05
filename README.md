@@ -1,8 +1,9 @@
-# NERGL
+NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks
+=============================================================================================
 
-Code for the TPDL 2025 paper **[NERGL: Named Entity Recognition and Grounding with Large Language Models for Ukiyo-E Artworks](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1)** and its journal extension.
+📄 [Paper](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1)  |  🤗 [Model](https://huggingface.co/BohaoWu/NERGL)  |  🗂️ [Dataset](https://huggingface.co/datasets/BohaoWu/Ukiyoe_MNERG)  |  📜 [Demo](https://huggingface.co/spaces/BohaoWu/NERGL-demo)
 
-[[Paper]](https://link.springer.com/chapter/10.1007/978-3-032-06136-2_1) [[Dataset]](https://huggingface.co/datasets/BohaoWu/Ukiyoe_MNERG) [[Model]](https://huggingface.co/BohaoWu/NERGL)
+Official code for our TPDL 2025 paper and its journal extension.
 
 NERGL finds the named entities in the title of an ukiyo-e (浮世絵) print, types them, and links each one
 to the region of the print that depicts it, or marks it as not depicted. A Japanese BART model reads
